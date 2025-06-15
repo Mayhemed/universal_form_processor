@@ -1,0 +1,172 @@
+{
+  "name": "Agentic PDF Form Filler Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "functionCode": "// Agentic PDF Form Filler - n8n Workflow Entry Point\n// This node orchestrates the AI agents for form filling\n\nconst inputData = items[0].json;\n\n// Validate inputs\nif (!inputData.pdfForm || !inputData.dataSources) {\n  throw new Error('Missing required inputs: pdfForm and dataSources');\n}\n\n// Set up orchestration data\nreturn [{\n  json: {\n    workflowId: $workflow.id,\n    executionId: $execution.id,\n    timestamp: new Date().toISOString(),\n    pdfForm: inputData.pdfForm,\n    dataSources: inputData.dataSources,\n    aiProvider: inputData.aiProvider || 'pattern',\n    model: inputData.model || '',\n    apiKey: inputData.apiKey || '',\n    maxIterations: inputData.maxIterations || 3,\n    currentIteration: 1,\n    status: 'initialized'\n  }\n}];"
+      },
+      "id": "orchestrator_init",
+      "name": "Orchestrator Init",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3 /private/tmp/agentic_form_filler.py",
+        "additionalFlags": {
+          "env": {
+            "OPENAI_API_KEY": "={{ $json.apiKey }}",
+            "ANTHROPIC_API_KEY": "={{ $json.apiKey }}"
+          }
+        }
+      },
+      "id": "data_extraction_agent",
+      "name": "Data Extraction Agent",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Quality Assurance Agent\n// Evaluates extraction quality and suggests improvements\n\nconst extractionResult = items[0].json;\n\n// Parse the extraction results\nlet results;\ntry {\n  results = JSON.parse(extractionResult.stdout || '{}');\n} catch (e) {\n  results = { success: false, error: 'Failed to parse extraction results' };\n}\n\n// Quality assessment logic\nconst qualityThreshold = 0.8;\nconst currentQuality = results.quality_score || 0;\nconst shouldRetry = currentQuality < qualityThreshold && results.iterations && results.iterations.length < 3;\n\n// Prepare quality assessment\nconst assessment = {\n  overallScore: currentQuality,\n  completionRate: results.fields_extracted / (results.total_fields || 1),\n  confidenceAvg: results.confidence_avg || 0,\n  issues: results.issues || [],\n  recommendations: results.recommendations || [],\n  shouldRetry: shouldRetry,\n  qualityMet: currentQuality >= qualityThreshold\n};\n\nreturn [{\n  json: {\n    ...extractionResult,\n    extractionResults: results,\n    qualityAssessment: assessment,\n    nextAction: shouldRetry ? 'retry_extraction' : 'finalize_form'\n  }\n}];"
+      },
+      "id": "quality_assurance_agent", 
+      "name": "Quality Assurance Agent",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.nextAction }}",
+              "operation": "equal",
+              "value2": "retry_extraction"
+            }
+          ]
+        }
+      },
+      "id": "quality_check",
+      "name": "Quality Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Iteration Controller\n// Manages retry logic and iteration counting\n\nconst data = items[0].json;\nconst currentIteration = data.currentIteration || 1;\nconst maxIterations = data.maxIterations || 3;\n\nif (currentIteration >= maxIterations) {\n  // Max iterations reached, proceed to finalization\n  return [{\n    json: {\n      ...data,\n      nextAction: 'finalize_form',\n      reason: 'max_iterations_reached'\n    }\n  }];\n}\n\n// Prepare for next iteration\nreturn [{\n  json: {\n    ...data,\n    currentIteration: currentIteration + 1,\n    status: 'retrying_extraction'\n  }\n}];"
+      },
+      "id": "iteration_controller",
+      "name": "Iteration Controller", 
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Form Finalization Agent\n// Fills the PDF form with extracted data\n\nconst data = items[0].json;\nconst results = data.extractionResults || {};\n\n// Prepare final summary\nconst summary = {\n  success: results.success || false,\n  qualityScore: results.quality_score || 0,\n  fieldsExtracted: results.fields_extracted || 0,\n  totalFields: results.total_fields || 0,\n  iterationsUsed: data.currentIteration || 1,\n  aiProvider: data.aiProvider,\n  processingTime: new Date().toISOString(),\n  filledPdfPath: results.filled_pdf_path\n};\n\n// Generate completion report\nconst report = {\n  title: '🤖 Agentic PDF Form Filler - Execution Report',\n  status: summary.success ? '✅ SUCCESS' : '❌ FAILED',\n  metrics: {\n    'Quality Score': `${(summary.qualityScore * 100).toFixed(1)}%`,\n    'Completion Rate': `${summary.fieldsExtracted}/${summary.totalFields} fields`,\n    'AI Provider': summary.aiProvider,\n    'Iterations Used': summary.iterationsUsed,\n    'Processing Time': summary.processingTime\n  },\n  outputFile: summary.filledPdfPath || 'No output generated'\n};\n\nreturn [{\n  json: {\n    ...data,\n    finalSummary: summary,\n    executionReport: report,\n    status: 'completed'\n  }\n}];"
+      },
+      "id": "form_finalization_agent",
+      "name": "Form Finalization Agent",
+      "type": "n8n-nodes-base.function", 
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Results Reporter\n// Generates formatted output and notifications\n\nconst data = items[0].json;\nconst report = data.executionReport || {};\nconst summary = data.finalSummary || {};\n\n// Create formatted output\nconst output = {\n  workflow_id: data.workflowId,\n  execution_id: data.executionId,\n  timestamp: new Date().toISOString(),\n  status: summary.success ? 'SUCCESS' : 'FAILED',\n  metrics: {\n    quality_score: summary.qualityScore,\n    fields_extracted: summary.fieldsExtracted,\n    total_fields: summary.totalFields,\n    completion_rate: summary.fieldsExtracted / (summary.totalFields || 1),\n    iterations_used: summary.iterationsUsed,\n    ai_provider: summary.aiProvider\n  },\n  files: {\n    input_form: data.pdfForm,\n    output_form: summary.filledPdfPath,\n    data_sources: data.dataSources\n  },\n  execution_log: data.extractionResults\n};\n\n// Create notification message\nconst notification = {\n  title: '🤖 PDF Form Processing Complete',\n  message: `Form: ${data.pdfForm}\\nStatus: ${output.status}\\nQuality: ${(summary.qualityScore * 100).toFixed(1)}%\\nFields: ${summary.fieldsExtracted}/${summary.totalFields}`,\n  success: summary.success\n};\n\nreturn [{\n  json: {\n    executionOutput: output,\n    notification: notification,\n    reportGenerated: true\n  }\n}];"
+      },
+      "id": "results_reporter",
+      "name": "Results Reporter",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1, 
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "orchestrator_init": {
+      "main": [
+        [
+          {
+            "node": "data_extraction_agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "data_extraction_agent": {
+      "main": [
+        [
+          {
+            "node": "quality_assurance_agent", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "quality_assurance_agent": {
+      "main": [
+        [
+          {
+            "node": "quality_check",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "quality_check": {
+      "main": [
+        [
+          {
+            "node": "iteration_controller",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "form_finalization_agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "iteration_controller": {
+      "main": [
+        [
+          {
+            "node": "data_extraction_agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "form_finalization_agent": {
+      "main": [
+        [
+          {
+            "node": "results_reporter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["ai", "pdf", "form-filling", "agentic"],
+  "triggerCount": 0,
+  "updatedAt": "2024-06-15T00:00:00.000Z",
+  "versionId": "1"
+}

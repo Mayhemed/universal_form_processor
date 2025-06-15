@@ -1,0 +1,312 @@
+{
+  "name": "Universal Legal Form Processor Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Universal Legal Form Processing Workflow\n\nThis workflow can process ANY legal form with ANY client data:\n- Extract data from any legal documents\n- Map fields intelligently \n- Fill any form template\n- Handle multiple clients and form types\n\n**Supported Operations:**\n- Data extraction from PDFs, images, text\n- Field mapping and validation\n- Form filling with pdftk\n- Multi-format output (JSON, CSV, PDF)\n\n**Integration Ready:**\n- REST API endpoints\n- File upload handling\n- Database connections\n- Email notifications",
+        "height": 464,
+        "width": 389
+      },
+      "id": "e1b5c2d4-info-node",
+      "name": "Workflow Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extract-form-data",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-webhook",
+      "name": "Webhook - Extract Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ],
+      "webhookId": "extract-form-data"
+    },
+    {
+      "parameters": {
+        "command": "cd /Users/markpiesner/Documents/Github/agentic_form_filler && source venv/bin/activate",
+        "additionalFields": {}
+      },
+      "id": "b2c3d4e5-setup-env",
+      "name": "Setup Environment",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Universal Form Processing Logic\nconst inputData = $input.all();\nconst webhookData = inputData[0].json;\n\n// Extract parameters from webhook\nconst operation = webhookData.operation || 'extract';\nconst aiProvider = webhookData.ai_provider || 'anthropic';\nconst outputFormat = webhookData.output_format || 'json';\nconst sourceFiles = webhookData.source_files || [];\nconst targetForm = webhookData.target_form || '';\nconst targetFields = webhookData.target_fields || [];\n\n// Build universal command\nlet command = 'python3 universal_form_processor.py';\n\nswitch(operation) {\n  case 'extract':\n    command += ` extract --sources ${sourceFiles.join(' ')}`;\n    command += ` --output /tmp/extracted_data.json`;\n    command += ` --ai-provider ${aiProvider}`;\n    command += ` --format ${outputFormat}`;\n    if (targetFields.length > 0) {\n      command += ` --target-fields ${targetFields.join(' ')}`;\n    }\n    break;\n    \n  case 'analyze':\n    command += ` analyze --form ${targetForm}`;\n    command += ` --output /tmp/form_structure.json`;\n    break;\n    \n  case 'process':\n    command += ` process --sources ${sourceFiles.join(' ')}`;\n    command += ` --target-form ${targetForm}`;\n    command += ` --output /tmp/filled_form.pdf`;\n    command += ` --ai-provider ${aiProvider}`;\n    command += ` --save-extracted /tmp/extracted_data.json`;\n    command += ` --save-mappings /tmp/field_mappings.json`;\n    break;\n    \n  default:\n    throw new Error(`Unknown operation: ${operation}`);\n}\n\n// Add API key if provided\nif (webhookData.api_key) {\n  command = `export ANTHROPIC_API_KEY='${webhookData.api_key}' && ${command}`;\n}\n\nreturn [{\n  json: {\n    command: command,\n    operation: operation,\n    ai_provider: aiProvider,\n    output_format: outputFormat,\n    source_files: sourceFiles,\n    target_form: targetForm,\n    target_fields: targetFields,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "c3d4e5f6-process-request",
+      "name": "Process Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.command }}",
+        "additionalFields": {
+          "workingDirectory": "/Users/markpiesner/Documents/Github/agentic_form_filler"
+        }
+      },
+      "id": "d4e5f6g7-execute-processor",
+      "name": "Execute Universal Processor",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse and format results\nconst inputData = $input.all();\nconst executionResult = inputData[0];\nconst requestData = inputData[0].json;\n\nlet response = {\n  success: true,\n  operation: requestData.operation,\n  timestamp: new Date().toISOString(),\n  execution_time: null,\n  results: {}\n};\n\ntry {\n  // Check if execution was successful\n  if (executionResult.json.exitCode === 0) {\n    const stdout = executionResult.json.stdout;\n    const stderr = executionResult.json.stderr;\n    \n    response.results = {\n      stdout: stdout,\n      stderr: stderr,\n      files_processed: requestData.source_files?.length || 0,\n      ai_provider: requestData.ai_provider\n    };\n    \n    // Try to parse any JSON output\n    if (stdout.includes('{')) {\n      try {\n        const jsonStart = stdout.indexOf('{');\n        const jsonEnd = stdout.lastIndexOf('}') + 1;\n        const jsonStr = stdout.substring(jsonStart, jsonEnd);\n        response.extracted_data = JSON.parse(jsonStr);\n      } catch (parseError) {\n        response.results.parse_warning = 'Could not parse JSON from output';\n      }\n    }\n    \n  } else {\n    response.success = false;\n    response.error = executionResult.json.stderr || 'Execution failed';\n  }\n  \n} catch (error) {\n  response.success = false;\n  response.error = error.message;\n}\n\nreturn [{ json: response }];"
+      },
+      "id": "e5f6g7h8-format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "f6g7h8i9-webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fill-form",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "g7h8i9j0-webhook-fill",
+      "name": "Webhook - Fill Form",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        500
+      ],
+      "webhookId": "fill-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Form Filling Logic\nconst inputData = $input.all();\nconst webhookData = inputData[0].json;\n\n// Extract form filling parameters\nconst sourceFiles = webhookData.source_files || [];\nconst targetForm = webhookData.target_form || '';\nconst outputPath = webhookData.output_path || '/tmp/filled_form.pdf';\nconst aiProvider = webhookData.ai_provider || 'anthropic';\nconst clientData = webhookData.client_data || {};\n\n// Validate required parameters\nif (!targetForm) {\n  throw new Error('target_form is required for form filling');\n}\n\nif (sourceFiles.length === 0 && Object.keys(clientData).length === 0) {\n  throw new Error('Either source_files or client_data must be provided');\n}\n\n// Build form filling command\nlet command = 'python3 universal_form_processor.py process';\ncommand += ` --target-form \"${targetForm}\"`;\ncommand += ` --output \"${outputPath}\"`;\ncommand += ` --ai-provider ${aiProvider}`;\n\nif (sourceFiles.length > 0) {\n  command += ` --sources ${sourceFiles.map(f => `\"${f}\"`).join(' ')}`;\n}\n\n// Add API key if provided\nif (webhookData.api_key) {\n  command = `export ANTHROPIC_API_KEY='${webhookData.api_key}' && ${command}`;\n}\n\nreturn [{\n  json: {\n    command: command,\n    operation: 'fill_form',\n    target_form: targetForm,\n    output_path: outputPath,\n    source_files: sourceFiles,\n    client_data: clientData,\n    ai_provider: aiProvider,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "h8i9j0k1-process-fill",
+      "name": "Process Fill Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.command }}",
+        "additionalFields": {
+          "workingDirectory": "/Users/markpiesner/Documents/Github/agentic_form_filler"
+        }
+      },
+      "id": "i9j0k1l2-execute-fill",
+      "name": "Execute Form Fill",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format form filling response\nconst inputData = $input.all();\nconst executionResult = inputData[0];\nconst requestData = inputData[0].json;\n\nlet response = {\n  success: true,\n  operation: 'fill_form',\n  timestamp: new Date().toISOString(),\n  target_form: requestData.target_form,\n  output_path: requestData.output_path,\n  results: {}\n};\n\ntry {\n  if (executionResult.json.exitCode === 0) {\n    response.results = {\n      stdout: executionResult.json.stdout,\n      stderr: executionResult.json.stderr,\n      form_filled: true,\n      output_file: requestData.output_path\n    };\n    \n    // Check if output file was created\n    const fs = require('fs');\n    if (fs.existsSync(requestData.output_path)) {\n      const stats = fs.statSync(requestData.output_path);\n      response.results.file_size = stats.size;\n      response.results.file_created = stats.birthtime;\n    }\n    \n  } else {\n    response.success = false;\n    response.error = executionResult.json.stderr || 'Form filling failed';\n  }\n  \n} catch (error) {\n  response.success = false;\n  response.error = error.message;\n}\n\nreturn [{ json: response }];"
+      },
+      "id": "j0k1l2m3-format-fill-response",
+      "name": "Format Fill Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "k1l2m3n4-fill-response",
+      "name": "Fill Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1580,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## API Endpoints Created:\n\n**1. Extract Data:**\n`POST /webhook/extract-form-data`\n```json\n{\n  \"operation\": \"extract\",\n  \"source_files\": [\"doc1.pdf\"],\n  \"ai_provider\": \"anthropic\",\n  \"target_fields\": [\"case_number\"],\n  \"api_key\": \"your-key\"\n}\n```\n\n**2. Fill Form:**\n`POST /webhook/fill-form`\n```json\n{\n  \"source_files\": [\"data.pdf\"],\n  \"target_form\": \"blank.pdf\",\n  \"output_path\": \"/tmp/filled.pdf\",\n  \"ai_provider\": \"anthropic\",\n  \"api_key\": \"your-key\"\n}\n```\n\n**Universal Support:**\n- Any form type (FL-120, FL-142, etc.)\n- Any client data\n- Multiple AI providers\n- Batch processing\n- File management",
+        "height": 443,
+        "width": 342
+      },
+      "id": "l2m3n4o5-api-info",
+      "name": "API Documentation",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Setup Environment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Environment": {
+      "main": [
+        [
+          {
+            "node": "Process Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Request": {
+      "main": [
+        [
+          {
+            "node": "Execute Universal Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Universal Processor": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Fill Form": {
+      "main": [
+        [
+          {
+            "node": "Process Fill Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Fill Request": {
+      "main": [
+        [
+          {
+            "node": "Execute Form Fill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Form Fill": {
+      "main": [
+        [
+          {
+            "node": "Format Fill Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Fill Response": {
+      "main": [
+        [
+          {
+            "node": "Fill Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "meta": {
+    "instanceId": "universal-legal-form-processor"
+  },
+  "id": "universal-legal-form-workflow",
+  "tags": [
+    "legal",
+    "forms",
+    "universal",
+    "ai",
+    "automation"
+  ]
+}

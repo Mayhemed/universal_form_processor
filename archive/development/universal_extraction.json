@@ -1,0 +1,49 @@
+{
+  "extracted_fields": {
+    "case_number": "24STFL00615",
+    "petitioner_name": "TAHIRA FRANCIS",
+    "respondent_name": "SHAWN ROGERS",
+    "household_furniture": "$10,000.00",
+    "checking_account": "$10,473.07",
+    "total_assets": "$20,473.07",
+    "student_loans": "$22,000.00",
+    "unsecured_loans": "$25,000.00",
+    "credit_cards": "$6,042.81",
+    "other_debts": "$16,583.00",
+    "total_debts": "$64,225.81",
+    "net_worth": "-$43,752.74"
+  },
+  "confidence_scores": {
+    "case_number": 0.95,
+    "petitioner_name": 0.95,
+    "respondent_name": 0.95,
+    "household_furniture": 0.95,
+    "checking_account": 0.95,
+    "total_assets": 0.95,
+    "student_loans": 0.95,
+    "unsecured_loans": 0.95,
+    "credit_cards": 0.95,
+    "other_debts": 0.95,
+    "total_debts": 0.95,
+    "net_worth": 0.95
+  },
+  "field_types": {
+    "case_number": "text",
+    "petitioner_name": "text",
+    "respondent_name": "text",
+    "household_furniture": "currency",
+    "checking_account": "currency",
+    "total_assets": "currency",
+    "student_loans": "currency",
+    "unsecured_loans": "currency",
+    "credit_cards": "currency",
+    "other_debts": "currency",
+    "total_debts": "currency",
+    "net_worth": "currency"
+  },
+  "form_type": "FL-142 Schedule of Assets and Debts",
+  "extraction_timestamp": "2025-06-15T10:42:59.520755",
+  "source_files": [
+    "FL142_Rogers_Assets_Debts.pdf"
+  ]
+}

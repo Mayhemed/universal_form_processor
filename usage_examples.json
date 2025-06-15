@@ -1,0 +1,22 @@
+{
+  "basic_usage": {
+    "description": "Basic form filling with pattern matching",
+    "command": "python3 agentic_form_filler.py --form form.pdf --sources data.txt --output filled.pdf"
+  },
+  "openai_usage": {
+    "description": "AI-powered extraction with OpenAI",
+    "command": "python3 agentic_form_filler.py --form form.pdf --sources data1.pdf data2.txt --ai-provider openai --api-key sk-... --output filled.pdf"
+  },
+  "anthropic_usage": {
+    "description": "AI-powered extraction with Anthropic Claude",
+    "command": "python3 agentic_form_filler.py --form form.pdf --sources data.pdf --ai-provider anthropic --model claude-3-sonnet --api-key sk-ant-... --output filled.pdf"
+  },
+  "quality_assurance": {
+    "description": "Maximum quality with multiple iterations",
+    "command": "python3 agentic_form_filler.py --form form.pdf --sources data.pdf --ai-provider anthropic --max-iterations 5 --output filled.pdf"
+  },
+  "framework_usage": {
+    "description": "Using the Python agentic framework",
+    "command": "python3 python_agentic_framework.py --form form.pdf --sources data1.txt data2.pdf --ai-provider openai --output filled.pdf"
+  }
+}
