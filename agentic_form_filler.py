@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import logging
 import traceback
+import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
@@ -68,6 +69,112 @@ def resolve_output_path(output_path: str) -> str:
     # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     return output_path
+
+def expand_file_patterns(patterns: List[str], base_dir: str = "") -> List[str]:
+    """Expand file patterns and globs to actual file paths"""
+    expanded_files = []
+    
+    for pattern in patterns:
+        # Handle absolute paths
+        if os.path.isabs(pattern):
+            if '*' in pattern or '?' in pattern:
+                # Glob pattern
+                matches = glob.glob(pattern)
+                expanded_files.extend(matches)
+            elif os.path.isfile(pattern):
+                expanded_files.append(pattern)
+            elif os.path.isdir(pattern):
+                # Directory - find all PDFs
+                pdf_files = glob.glob(os.path.join(pattern, "*.pdf"))
+                expanded_files.extend(pdf_files)
+        else:
+            # Relative path - try with base directory
+            full_pattern = os.path.join(base_dir, pattern) if base_dir else pattern
+            
+            if '*' in pattern or '?' in pattern:
+                # Glob pattern
+                matches = glob.glob(full_pattern)
+                if not matches and base_dir:
+                    # Try without base directory
+                    matches = glob.glob(pattern)
+                expanded_files.extend(matches)
+            elif os.path.isfile(full_pattern):
+                expanded_files.append(full_pattern)
+            elif os.path.isfile(pattern):
+                expanded_files.append(pattern)
+            elif os.path.isdir(full_pattern):
+                # Directory - find all PDFs
+                pdf_files = glob.glob(os.path.join(full_pattern, "*.pdf"))
+                expanded_files.extend(pdf_files)
+            elif os.path.isdir(pattern):
+                # Directory without base
+                pdf_files = glob.glob(os.path.join(pattern, "*.pdf"))
+                expanded_files.extend(pdf_files)
+    
+    # Remove duplicates and sort
+    return sorted(list(set(expanded_files)))
+
+def expand_source_files(source_patterns: List[str]) -> List[str]:
+    """Expand source file patterns, supporting various file types"""
+    expanded_files = []
+    
+    for pattern in source_patterns:
+        # Handle absolute paths
+        if os.path.isabs(pattern):
+            if '*' in pattern or '?' in pattern:
+                # Glob pattern
+                matches = glob.glob(pattern)
+                expanded_files.extend(matches)
+            elif os.path.isfile(pattern):
+                expanded_files.append(pattern)
+            elif os.path.isdir(pattern):
+                # Directory - find all supported files
+                for ext in ['*.pdf', '*.txt', '*.json', '*.csv', '*.md', '*.docx', '*.xlsx']:
+                    files = glob.glob(os.path.join(pattern, ext))
+                    expanded_files.extend(files)
+        else:
+            # Relative path - try with DATA_DIR
+            full_pattern = os.path.join(DEFAULT_DATA_DIR, pattern)
+            
+            if '*' in pattern or '?' in pattern:
+                # Glob pattern
+                matches = glob.glob(full_pattern)
+                if not matches:
+                    # Try without base directory
+                    matches = glob.glob(pattern)
+                expanded_files.extend(matches)
+            elif os.path.isfile(full_pattern):
+                expanded_files.append(full_pattern)
+            elif os.path.isfile(pattern):
+                expanded_files.append(pattern)
+            elif os.path.isdir(full_pattern):
+                # Directory - find all supported files
+                for ext in ['*.pdf', '*.txt', '*.json', '*.csv', '*.md', '*.docx', '*.xlsx']:
+                    files = glob.glob(os.path.join(full_pattern, ext))
+                    expanded_files.extend(files)
+            elif os.path.isdir(pattern):
+                # Directory without base
+                for ext in ['*.pdf', '*.txt', '*.json', '*.csv', '*.md', '*.docx', '*.xlsx']:
+                    files = glob.glob(os.path.join(pattern, ext))
+                    expanded_files.extend(files)
+    
+    return sorted(list(set(expanded_files)))
+
+def find_pdf_files_in_directory(directory: str) -> List[str]:
+    """Find all PDF files in a directory and subdirectories"""
+    pdf_files = []
+    
+    # Check if directory exists
+    if not os.path.isdir(directory):
+        return pdf_files
+    
+    # Find PDFs recursively
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.lower().endswith('.pdf'):
+                pdf_files.append(os.path.join(root, file))
+    
+    return sorted(pdf_files)
 
 @dataclass
 class ExtractionResult:
@@ -975,17 +1082,35 @@ Examples:
   # Basic form filling with pattern matching
   python agentic_form_filler.py --form form.pdf --sources data.txt --output filled.pdf
   
-  # AI-powered with OpenAI
-  python agentic_form_filler.py --form form.pdf --sources data1.pdf data2.txt --output filled.pdf --ai-provider openai --api-key sk-...
+  # Process all PDFs in a directory as sources
+  python agentic_form_filler.py --form form.pdf --sources "data/*.pdf" --output filled.pdf
   
-  # Quality assurance with multiple iterations
-  python agentic_form_filler.py --form form.pdf --sources data.pdf --output filled.pdf --ai-provider anthropic --max-iterations 5
+  # Use entire directory as source (all supported file types)
+  python agentic_form_filler.py --form form.pdf --sources client_documents/ --output filled.pdf
+  
+  # Multiple patterns and directories
+  python agentic_form_filler.py --form form.pdf --sources "case1/*.pdf" "case2/*.txt" documents/ --output filled.pdf
+  
+  # AI-powered with OpenAI
+  python agentic_form_filler.py --form form.pdf --sources "data/*.pdf" --output filled.pdf --ai-provider openai --api-key sk-...
+  
+  # Recursive directory search
+  python agentic_form_filler.py --form form.pdf --sources client_data/ --recursive --output filled.pdf
         """
     )
     
     # Required arguments
-    parser.add_argument('--form', required=True, help='Path to the blank PDF form')
-    parser.add_argument('--sources', nargs='+', required=True, help='Data sources (files or text)')
+    parser.add_argument('--form', required=True, 
+                       help='Path to the blank PDF form (supports wildcards like "forms/*.pdf")')
+    parser.add_argument('--sources', nargs='+', required=True, 
+                       help='Data sources: files, directories, or patterns (e.g., "data/*.pdf", "client_docs/")')
+    
+    # File selection options
+    parser.add_argument('--recursive', '-r', action='store_true',
+                       help='Search directories recursively for files')
+    parser.add_argument('--include-extensions', nargs='+',
+                       default=['pdf', 'txt', 'json', 'csv', 'md', 'docx', 'xlsx'],
+                       help='File extensions to include when processing directories')
     
     # Optional arguments
     parser.add_argument('--output', help='Output path for filled PDF')
@@ -1005,21 +1130,42 @@ Examples:
     
     # Resolve and validate paths
     args.form = resolve_form_path(args.form)
-    args.sources = resolve_data_paths(args.sources)
+    
+    # Expand source patterns and directories
+    print(f"🔍 Expanding source patterns: {args.sources}")
+    args.sources = expand_source_files(args.sources)
+    
+    if args.verbose:
+        print(f"📁 Resolved form: {args.form}")
+        print(f"📁 Expanded sources ({len(args.sources)} files):")
+        for src in args.sources[:10]:  # Show first 10
+            print(f"   - {src}")
+        if len(args.sources) > 10:
+            print(f"   ... and {len(args.sources) - 10} more files")
     
     if not Path(args.form).exists():
         print(f"❌ Error: PDF form not found: {args.form}")
         print(f"   Searched in: {DEFAULT_FORMS_DIR}")
         sys.exit(1)
         
-    # Check data sources
-    missing_sources = [src for src in args.sources if not Path(src).exists()]
-    if missing_sources:
-        print(f"❌ Error: Data sources not found:")
-        for src in missing_sources:
-            print(f"   - {src}")
+    # Check if we found any sources
+    if not args.sources:
+        print(f"❌ Error: No source files found matching patterns")
+        print(f"   Patterns tried: {' '.join(sys.argv)}")
         print(f"   Searched in: {DEFAULT_DATA_DIR}")
         sys.exit(1)
+        
+    # Check data sources exist
+    missing_sources = [src for src in args.sources if not Path(src).exists()]
+    if missing_sources:
+        print(f"❌ Error: {len(missing_sources)} source files not found:")
+        for src in missing_sources[:5]:  # Show first 5
+            print(f"   - {src}")
+        if len(missing_sources) > 5:
+            print(f"   ... and {len(missing_sources) - 5} more files")
+        sys.exit(1)
+    
+    print(f"✅ Found {len(args.sources)} source files for processing")
     
     # Check for API key requirement
     if args.ai_provider in ['openai', 'anthropic'] and not args.api_key:

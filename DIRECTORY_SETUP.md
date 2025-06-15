@@ -156,6 +156,38 @@ EOF
 echo "✅ Legal practice directory structure created at: $BASE_DIR"
 ```
 
+## 🔍 **Wildcard and Pattern Matching**
+
+### **File Selection Patterns**
+```bash
+# All PDFs in a specific directory
+python agentic_form_filler.py --form form.pdf --sources "client_data/*.pdf"
+
+# All files in a directory (auto-detects supported types)
+python agentic_form_filler.py --form form.pdf --sources "client_case/"
+
+# Files matching a pattern across subdirectories
+python agentic_form_filler.py --form form.pdf --sources "cases/*/financial*"
+
+# Multiple patterns combined
+python agentic_form_filler.py --form form.pdf --sources "case1/*.pdf" "case2/*.txt" "docs/"
+
+# Recursive directory search
+python agentic_form_filler.py --form form.pdf --sources "client_data/" --recursive
+
+# Filter by file extensions
+python agentic_form_filler.py --form form.pdf --sources "data/" --include-extensions pdf txt json
+```
+
+### **Supported Patterns**
+- `*.pdf` - All PDF files
+- `case_*.txt` - Files starting with "case_" and ending with ".txt"
+- `*/financial*` - Files starting with "financial" in any subdirectory
+- `directory/` - All supported files in directory
+- `--recursive` - Search subdirectories recursively
+
+**📖 For complete wildcard examples, see: [wildcard_examples.py](wildcard_examples.py)**
+
 ## 🎯 **Real-World Examples**
 
 ### **Divorce Case Processing**

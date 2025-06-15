@@ -35,12 +35,45 @@ python3 universal_form_processor.py extract \
   --output extracted_data.json \
   --ai-provider anthropic
 
+# Process all PDFs in a directory
+python3 agentic_form_filler.py \
+  --form form.pdf \
+  --sources "client_data/*.pdf" \
+  --output filled.pdf
+
+# Use entire directory as source
+python3 agentic_form_filler.py \
+  --form form.pdf \
+  --sources client_documents/ \
+  --output filled.pdf
+
 # Test system health
 python3 quick_test.py
 
 # Run interactive demo
 python3 demo_agentic_system.py
 ```
+
+### 🔍 **Wildcard and Directory Support**
+```bash
+# Single directory - all files
+python3 agentic_form_filler.py --form form.pdf --sources "client_case/"
+
+# Wildcard patterns
+python3 agentic_form_filler.py --form form.pdf --sources "data/*.pdf"
+python3 agentic_form_filler.py --form form.pdf --sources "cases/*/financial*"
+
+# Multiple patterns and directories  
+python3 agentic_form_filler.py --form form.pdf --sources "case1/*.pdf" "case2/*.txt" "docs/"
+
+# Recursive directory search
+python3 agentic_form_filler.py --form form.pdf --sources "client_data/" --recursive
+
+# File type filtering
+python3 agentic_form_filler.py --form form.pdf --sources "data/" --include-extensions pdf txt
+```
+
+**📖 See [wildcard_examples.py](wildcard_examples.py) for comprehensive wildcard usage examples.**
 
 ## 📁 **Directory Configuration**
 
