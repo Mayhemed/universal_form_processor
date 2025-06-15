@@ -17,6 +17,11 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+# Directory configuration from environment variables
+DEFAULT_FORMS_DIR = os.getenv('FORMS_DIR', './forms')
+DEFAULT_DATA_DIR = os.getenv('DATA_DIR', './data') 
+DEFAULT_OUTPUT_DIR = os.getenv('OUTPUT_DIR', './output')
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +32,42 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('AgenticFormFiller')
+
+def resolve_path(path: str, default_dir: str = "") -> str:
+    """Resolve a path, checking default directories if relative"""
+    if os.path.isabs(path):
+        return path
+    
+    # Try the path as-is first
+    if os.path.exists(path):
+        return path
+    
+    # Try in the default directory
+    if default_dir:
+        default_path = os.path.join(default_dir, path)
+        if os.path.exists(default_path):
+            return default_path
+    
+    # Return original path (might not exist, but let the calling code handle it)
+    return path
+
+def resolve_form_path(form_path: str) -> str:
+    """Resolve path to a form file"""
+    return resolve_path(form_path, DEFAULT_FORMS_DIR)
+
+def resolve_data_paths(data_paths: List[str]) -> List[str]:
+    """Resolve paths to data files"""
+    return [resolve_path(path, DEFAULT_DATA_DIR) for path in data_paths]
+
+def resolve_output_path(output_path: str) -> str:
+    """Resolve output path, creating directory if needed"""
+    if not os.path.isabs(output_path):
+        # If relative, use default output directory
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, output_path)
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    return output_path
 
 @dataclass
 class ExtractionResult:
@@ -962,9 +1003,22 @@ Examples:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
-    # Validate inputs
+    # Resolve and validate paths
+    args.form = resolve_form_path(args.form)
+    args.sources = resolve_data_paths(args.sources)
+    
     if not Path(args.form).exists():
         print(f"❌ Error: PDF form not found: {args.form}")
+        print(f"   Searched in: {DEFAULT_FORMS_DIR}")
+        sys.exit(1)
+        
+    # Check data sources
+    missing_sources = [src for src in args.sources if not Path(src).exists()]
+    if missing_sources:
+        print(f"❌ Error: Data sources not found:")
+        for src in missing_sources:
+            print(f"   - {src}")
+        print(f"   Searched in: {DEFAULT_DATA_DIR}")
         sys.exit(1)
     
     # Check for API key requirement
@@ -978,10 +1032,12 @@ Examples:
             print(f"   Set {env_key} environment variable or use --api-key")
             sys.exit(1)
     
-    # Set default output path
+    # Set default output path and resolve it
     if not args.output:
         form_path = Path(args.form)
-        args.output = str(form_path.parent / f"{form_path.stem}_filled.pdf")
+        args.output = f"{form_path.stem}_filled.pdf"
+    
+    args.output = resolve_output_path(args.output)
     
     print(f"🚀 Starting Agentic PDF Form Filler...")
     print(f"📄 Form: {args.form}")

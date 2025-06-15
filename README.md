@@ -42,6 +42,26 @@ python3 quick_test.py
 python3 demo_agentic_system.py
 ```
 
+## 📁 **Directory Configuration**
+
+The system supports flexible directory configuration for forms, data, and output:
+
+### **Quick Setup**
+```bash
+# Option 1: Use default directories
+mkdir -p forms data output
+
+# Option 2: Set custom directories
+export FORMS_DIR="/path/to/your/forms"
+export DATA_DIR="/path/to/your/data"  
+export OUTPUT_DIR="/path/to/your/output"
+
+# Option 3: Use absolute paths in commands
+python agentic_form_filler.py --form "/full/path/form.pdf" --sources "/full/path/data.pdf"
+```
+
+**📖 See [DIRECTORY_SETUP.md](DIRECTORY_SETUP.md) for complete configuration guide with examples for legal practices.**
+
 ## 📋 **Core Components**
 
 | File | Purpose | Status |
