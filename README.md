@@ -73,7 +73,29 @@ python3 agentic_form_filler.py --form form.pdf --sources "client_data/" --recurs
 python3 agentic_form_filler.py --form form.pdf --sources "data/" --include-extensions pdf txt
 ```
 
-**📖 See [wildcard_examples.py](wildcard_examples.py) for comprehensive wildcard usage examples.**
+### **🤖 AI Model Selection**
+```bash
+# Discover available models
+python3 agentic_form_filler.py --list-models
+python3 model_selector.py --list-all
+
+# Get model recommendations for your task
+python3 agentic_form_filler.py --recommend-model legal_forms
+python3 model_selector.py --recommend legal_forms --budget-priority
+
+# Interactive model selection wizard
+python3 model_selector.py --interactive
+
+# Auto-select best model for task
+python3 agentic_form_filler.py --form form.pdf --sources data.pdf \
+  --ai-provider anthropic --auto-select-model
+
+# Use specific model
+python3 agentic_form_filler.py --form form.pdf --sources data.pdf \
+  --ai-provider openai --model gpt-4o
+```
+
+**📖 See [MODEL_SELECTION_GUIDE.md](MODEL_SELECTION_GUIDE.md) for complete model selection guide.**
 
 ## 📁 **Directory Configuration**
 

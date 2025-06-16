@@ -1099,10 +1099,9 @@ Examples:
         """
     )
     
-    # Required arguments
-    parser.add_argument('--form', required=True, 
-                       help='Path to the blank PDF form (supports wildcards like "forms/*.pdf")')
-    parser.add_argument('--sources', nargs='+', required=True, 
+    # Arguments (form and sources are required unless using discovery commands)
+    parser.add_argument('--form', help='Path to the blank PDF form (supports wildcards like "forms/*.pdf")')
+    parser.add_argument('--sources', nargs='*', 
                        help='Data sources: files, directories, or patterns (e.g., "data/*.pdf", "client_docs/")')
     
     # File selection options
@@ -1116,17 +1115,132 @@ Examples:
     parser.add_argument('--output', help='Output path for filled PDF')
     parser.add_argument('--ai-provider', choices=['pattern', 'openai', 'anthropic'], 
                        default='pattern', help='AI provider for extraction')
-    parser.add_argument('--model', help='AI model to use (e.g., gpt-4, claude-3-opus)')
+    parser.add_argument('--model', help='AI model to use (e.g., gpt-4o, claude-3-5-sonnet-20241022)')
     parser.add_argument('--api-key', help='API key for AI provider')
     parser.add_argument('--max-iterations', type=int, default=3, 
                        help='Maximum iterations for quality improvement')
+    
+    # Model discovery and selection
+    parser.add_argument('--list-models', action='store_true',
+                       help='List available models and exit')
+    parser.add_argument('--recommend-model', choices=['legal_forms', 'data_extraction', 'simple_forms', 'complex_analysis'],
+                       help='Get model recommendations for task type and exit')
+    parser.add_argument('--budget-priority', action='store_true',
+                       help='Prioritize cost-effective models in recommendations')
+    parser.add_argument('--auto-select-model', action='store_true',
+                       help='Automatically select best model for the task')
+    
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     
     args = parser.parse_args()
     
+    # Handle model discovery commands first (before other processing)
+    if args.list_models or args.recommend_model:
+        try:
+            import llm_client
+            
+            # Get API keys
+            openai_key = args.api_key if args.ai_provider == 'openai' else os.getenv("OPENAI_API_KEY")
+            anthropic_key = args.api_key if args.ai_provider == 'anthropic' else os.getenv("ANTHROPIC_API_KEY")
+            
+            if args.list_models:
+                print("🤖 Available AI Models")
+                print("=" * 50)
+                
+                all_models = llm_client.get_all_available_models(openai_key, anthropic_key)
+                
+                if not all_models:
+                    print("❌ No models available. Check your API keys:")
+                    print("   export OPENAI_API_KEY='your-key-here'")
+                    print("   export ANTHROPIC_API_KEY='your-key-here'")
+                    sys.exit(1)
+                
+                # Group by provider
+                providers = {}
+                for model_id, info in all_models.items():
+                    provider = info.get("provider", "unknown")
+                    if provider not in providers:
+                        providers[provider] = []
+                    providers[provider].append((model_id, info))
+                
+                for provider, models in providers.items():
+                    print(f"\n🔵 {provider.upper()} ({len(models)} models):")
+                    for model_id, info in models:
+                        context = info.get("context_window", 0)
+                        cost = info.get("cost_tier", "unknown")
+                        caps = ", ".join(info.get("capabilities", [])[:2])
+                        print(f"  • {model_id}")
+                        print(f"    Context: {context:,} tokens, Cost: {cost}, Capabilities: {caps}")
+                
+                print(f"\n💡 Usage example:")
+                sample_model = list(all_models.keys())[0]
+                sample_provider = all_models[sample_model].get("provider")
+                print(f"   python3 agentic_form_filler.py --form form.pdf --sources data.pdf \\")
+                print(f"     --ai-provider {sample_provider} --model {sample_model}")
+                sys.exit(0)
+            
+            if args.recommend_model:
+                print(f"🎯 Model Recommendations for: {args.recommend_model}")
+                if args.budget_priority:
+                    print("💰 Prioritizing cost-effective options")
+                print("=" * 50)
+                
+                all_models = llm_client.get_all_available_models(openai_key, anthropic_key)
+                
+                if not all_models:
+                    print("❌ No models available for recommendations")
+                    sys.exit(1)
+                
+                recommendations = llm_client.recommend_model_for_task(
+                    args.recommend_model, all_models, args.budget_priority
+                )
+                
+                if not recommendations:
+                    print(f"❌ No suitable models found for {args.recommend_model}")
+                    sys.exit(1)
+                
+                print(f"📋 Top {len(recommendations)} recommendations:")
+                
+                for i, model_id in enumerate(recommendations[:3], 1):
+                    model_info = all_models[model_id]
+                    provider = model_info.get("provider", "unknown")
+                    cost = model_info.get("cost_tier", "unknown")
+                    context = model_info.get("context_window", 0)
+                    description = model_info.get("description", "")
+                    
+                    print(f"\n{i}. 🤖 {model_id}")
+                    print(f"   Provider: {provider.title()}")
+                    print(f"   Cost: {cost.title()}")
+                    print(f"   Context: {context:,} tokens")
+                    print(f"   Description: {description}")
+                    print(f"   Usage:")
+                    print(f"     python3 agentic_form_filler.py --form form.pdf --sources data.pdf \\")
+                    print(f"       --ai-provider {provider} --model {model_id}")
+                
+                sys.exit(0)
+                
+        except ImportError:
+            print("❌ Model discovery requires llm_client.py")
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Error during model discovery: {e}")
+            sys.exit(1)
+    
     # Configure logging level
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Validate required arguments (unless using discovery commands)
+    if not args.list_models and not args.recommend_model:
+        if not args.form:
+            print("❌ Error: --form is required")
+            print("   Use --list-models or --recommend-model for model discovery")
+            sys.exit(1)
+        
+        if not args.sources:
+            print("❌ Error: --sources is required")
+            print("   Use --list-models or --recommend-model for model discovery")
+            sys.exit(1)
     
     # Resolve and validate paths
     args.form = resolve_form_path(args.form)
@@ -1166,6 +1280,45 @@ Examples:
         sys.exit(1)
     
     print(f"✅ Found {len(args.sources)} source files for processing")
+    
+    # Auto-select model if requested
+    if args.auto_select_model and args.ai_provider != 'pattern':
+        try:
+            import llm_client
+            
+            # Get API keys
+            openai_key = args.api_key if args.ai_provider == 'openai' else os.getenv("OPENAI_API_KEY")
+            anthropic_key = args.api_key if args.ai_provider == 'anthropic' else os.getenv("ANTHROPIC_API_KEY")
+            
+            print(f"🤖 Auto-selecting best model for {args.ai_provider}...")
+            
+            all_models = llm_client.get_all_available_models(openai_key, anthropic_key)
+            
+            # Filter models by provider
+            provider_models = {k: v for k, v in all_models.items() 
+                             if v.get("provider") == args.ai_provider}
+            
+            if provider_models:
+                # Determine task type based on context
+                task_type = "legal_forms"  # Default for this application
+                
+                recommendations = llm_client.recommend_model_for_task(
+                    task_type, provider_models, args.budget_priority
+                )
+                
+                if recommendations:
+                    args.model = recommendations[0]
+                    model_info = provider_models[args.model]
+                    print(f"✅ Auto-selected: {args.model}")
+                    print(f"   Reason: {model_info.get('description', 'Best match for task')}")
+                else:
+                    print("⚠️ No specific recommendations, using provider default")
+            else:
+                print(f"⚠️ No models available for {args.ai_provider}")
+                
+        except Exception as e:
+            print(f"⚠️ Auto-selection failed: {e}")
+            print("   Continuing with manual model selection...")
     
     # Check for API key requirement
     if args.ai_provider in ['openai', 'anthropic'] and not args.api_key:
